@@ -2,11 +2,12 @@ import { PrismaClient } from '@prisma/client'
 
 const dbUrl = process.env.DATABASE_URL || ''
 
-async function createDb() {
+function createClient(): PrismaClient {
   if (dbUrl.startsWith('libsql://')) {
-    // Turso (production) - use libsql driver adapter
-    const { PrismaLibSQL } = await import('@prisma/adapter-libsql')
-    const { createClient } = await import('@libsql/client')
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { PrismaLibSQL } = require('@prisma/adapter-libsql')
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { createClient } = require('@libsql/client')
 
     const libsql = createClient({
       url: dbUrl,
@@ -16,10 +17,13 @@ async function createDb() {
     return new PrismaClient({ adapter: new PrismaLibSQL(libsql) })
   }
 
-  // Local SQLite (development)
   return new PrismaClient()
 }
 
-let _db: PrismaClient | undefined
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
+}
 
-export const db: PrismaClient = await createDb()
+export const db: PrismaClient = globalForPrisma.prisma ?? createClient()
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
