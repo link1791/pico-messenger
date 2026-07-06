@@ -39,11 +39,11 @@ _CALC_KEYPAD = {
     "0": [" "],
 }
 
-def ask_calc(msg=None, default="", allow_dot=False):
+def ask_calc(msg=None, default="", allow_dot=False, allow_hyphen=False):
     """Custom text input with calculator-layout T9 support.
 
     Works like ui.ask() but with correct T9 mapping for the
-    calculator keyboard. Also optionally allows the DOT key.
+    calculator keyboard. Also optionally allows DOT and hyphen keys.
     """
     buf = default
     shift = False
@@ -109,6 +109,8 @@ def ask_calc(msg=None, default="", allow_dot=False):
                 buf += "/"
             elif allow_dot and key == KB.KEY.DOT:
                 buf += "."
+            elif allow_hyphen and key == KB.KEY.SUBTRACT:
+                buf += "-"
 
 
 # ─── constants ──────────────────────────────────────────
@@ -177,6 +179,14 @@ def set_server_ip(s):
 
 def get_server():
     ip = get_server_ip()
+    # domains auto-use HTTPS:443, no port needed
+    has_letter = False
+    for c in ip:
+        if c.isalpha():
+            has_letter = True
+            break
+    if has_letter:
+        return ip
     return ip + ":" + str(SERVER_PORT)
 
 
@@ -282,19 +292,32 @@ def wrap_text(text, max_chars):
 
 
 # ─── network ────────────────────────────────────────────
+def _is_domain(addr):
+    """Check if address is a domain name (not an IP)."""
+    if not addr:
+        return False
+    for c in addr:
+        if c.isalpha():
+            return True
+    return False
+
+
 def send_http(method, url, data=None):
-    """Send HTTP request using raw sockets (no ssl for LAN)."""
+    """Send HTTP/HTTPS request using raw sockets."""
     if not wifi.support or not wlan.isconnected():
         return None
 
     garbage.collect()
 
     try:
+        use_ssl = False
+
         # parse url
-        if url.startswith("http://"):
-            url = url[7:]
-        elif url.startswith("https://"):
+        if url.startswith("https://"):
             url = url[8:]
+            use_ssl = True
+        elif url.startswith("http://"):
+            url = url[7:]
 
         slash = url.find("/")
         if slash == -1:
@@ -309,12 +332,23 @@ def send_http(method, url, data=None):
             port = int(port_str)
         else:
             host = host_port
-            port = 80
+            # auto-detect: domains use HTTPS/443, IPs use HTTP/80
+            if _is_domain(host):
+                port = 443
+                use_ssl = True
+            else:
+                port = 80
 
         addr = socket.getaddrinfo(host, port)[0][-1]
         s = socket.socket()
         s.connect(addr)
-        s.settimeout(5)
+        s.settimeout(8)
+
+        # wrap with SSL if needed
+        if use_ssl:
+            import ssl
+            ctx = ssl.create_default_context()
+            s = ctx.wrap_socket(s, server_hostname=host)
 
         user = get_user()
         rq = method + " " + path + " HTTP/1.0\r\n"
@@ -687,7 +721,11 @@ def view_settings():
         ip = get_server_ip()
         screen.write(ip, 4, y, SCR.COLOR.DARK, FONT_SM)
         y += 8
-        screen.write("Port: " + str(SERVER_PORT), 0, y, SCR.COLOR.DARK, FONT_SM)
+        # show protocol info
+        if _is_domain(ip):
+            screen.write("HTTPS:443 (auto)", 0, y, SCR.COLOR.DARK, FONT_SM)
+        else:
+            screen.write("Port: " + str(SERVER_PORT), 0, y, SCR.COLOR.DARK, FONT_SM)
 
         # wifi status
         y += 4
@@ -708,7 +746,7 @@ def view_settings():
             if u:
                 set_user(u)
         elif c == 1:
-            s = ask_calc("Server IP:", ip, allow_dot=True)
+            s = ask_calc("Server IP:", ip, allow_dot=True, allow_hyphen=True)
             if s:
                 set_server_ip(s)
         elif c == 2:
