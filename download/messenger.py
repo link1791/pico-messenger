@@ -124,7 +124,7 @@ MSG_PAGE = 7        # lines of messages visible
 CHARS_PER_LINE_SM = SCR_W // FONT_SM().w   # 48
 CHARS_PER_LINE_LG = SCR_W // FONT_LG().w   # ~17
 MAX_MSG_LEN = 120
-SERVER_PORT = 8080
+SERVER_PORT = 80
 DEFAULT_SERVER = "192.168.1.100"
 DEFAULT_USER = "pico"
 
