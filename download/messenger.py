@@ -18,6 +18,99 @@ if wifi.support:
 name = "Messenger"
 requires = ["wifi"]
 
+# ─── custom T9 input (calculator layout) ──────────────
+# The firmware's ui.ask() uses phone-style T9 mapping which
+# doesn't match the calculator's physical key layout:
+#   Phone:  1 2 3    Calculator:  7 8 9
+#           4 5 6                4 5 6
+#           7 8 9                1 2 3
+#             0                    0
+# So we remap T9 letters to match calculator positions.
+# Key 3 and 9 get extra symbols since they have no phone equivalent.
+_CALC_KEYPAD = {
+    "7": ["a", "b", "c"],
+    "8": ["d", "e", "f"],
+    "9": ["g", "h", "i"],
+    "4": ["j", "k", "l"],
+    "5": ["m", "n", "o"],
+    "6": ["p", "q", "r", "s"],
+    "1": ["t", "u", "v"],
+    "2": ["w", "x", "y", "z"],
+    "0": [" "],
+}
+
+def ask_calc(msg=None, default="", allow_dot=False):
+    """Custom text input with calculator-layout T9 support.
+
+    Works like ui.ask() but with correct T9 mapping for the
+    calculator keyboard. Also optionally allows the DOT key.
+    """
+    buf = default
+    shift = False
+    while True:
+        screen.clear()
+        if msg:
+            screen.write(msg, 0, 0, SCR.COLOR.BLACK, font.miniwi)
+        screen.write(buf + "|", 0, (8 if msg else 0), SCR.COLOR.BLACK, font.miniwi)
+        screen.apply()
+        while keyboard.pressed_any():
+            pass
+        key = keyboard.get_next()
+        if key == KB.KEY.SHIFT:
+            shift = not shift
+        elif key == KB.KEY.FORMAT and len(buf):
+            last = buf[-1]
+            if last.isdigit():
+                count = 0
+                for c in reversed(buf):
+                    if c != last:
+                        break
+                    count += 1
+                if last in _CALC_KEYPAD:
+                    letters = _CALC_KEYPAD[last]
+                    if count <= len(letters):
+                        letter = letters[count - 1]
+                        if shift:
+                            shift = False
+                            letter = letter.upper()
+                        buf = buf[:-count] + letter
+        elif shift:
+            shift = False
+            if key == KB.KEY.SUBTRACT:
+                buf += "_"
+        else:
+            if key == KB.KEY.EXE:
+                return buf
+            elif key == KB.KEY.AC:
+                buf = ""
+            elif key == KB.KEY.BKSPACE:
+                buf = buf[:-1]
+            elif key == KB.KEY.N0:
+                buf += "0"
+            elif key == KB.KEY.N1:
+                buf += "1"
+            elif key == KB.KEY.N2:
+                buf += "2"
+            elif key == KB.KEY.N3:
+                buf += "3"
+            elif key == KB.KEY.N4:
+                buf += "4"
+            elif key == KB.KEY.N5:
+                buf += "5"
+            elif key == KB.KEY.N6:
+                buf += "6"
+            elif key == KB.KEY.N7:
+                buf += "7"
+            elif key == KB.KEY.N8:
+                buf += "8"
+            elif key == KB.KEY.N9:
+                buf += "9"
+            elif key == KB.KEY.DIVIDE:
+                buf += "/"
+            elif allow_dot and key == KB.KEY.DOT:
+                buf += "."
+
+
 # ─── constants ──────────────────────────────────────────
 DIR = "/conf/messenger"
 CONTACTS_FILE = DIR + "/contacts.txt"
@@ -410,7 +503,7 @@ def view_contacts():
         elif key == KB.KEY.OK:
             if keyboard.pressed(KB.KEY.SHIFT):
                 # new contact
-                name = ui.ask("Contact name:")
+                name = ask_calc("Contact name:")
                 if name:
                     add_contact(name)
                     contacts = get_contacts()
@@ -428,7 +521,7 @@ def view_contacts():
         elif key == KB.KEY.HOME:
             c = ui.choose(["New contact", "Settings", "Fetch all", "About"])
             if c == 0:
-                name = ui.ask("Contact name:")
+                name = ask_calc("Contact name:")
                 if name:
                     add_contact(name)
                     contacts = get_contacts()
@@ -523,7 +616,7 @@ def view_chat(contact):
             scroll = min(max_scroll, scroll + MSG_PAGE)
         elif key == KB.KEY.OK:
             # compose message
-            text = ui.ask("Message:")
+            text = ask_calc("Message:")
             if text and len(text) > 0:
                 # save locally
                 add_message(contact, "<", text)
@@ -611,11 +704,11 @@ def view_settings():
 
         c = ui.choose(["Set username", "Set server IP", "Connect WiFi", "Back"])
         if c == 0:
-            u = ui.ask("Username:", user)
+            u = ask_calc("Username:", user)
             if u:
                 set_user(u)
         elif c == 1:
-            s = ui.ask("Server IP:", ip)
+            s = ask_calc("Server IP:", ip, allow_dot=True)
             if s:
                 set_server_ip(s)
         elif c == 2:
