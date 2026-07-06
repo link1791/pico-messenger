@@ -1,29 +1,46 @@
 import { PrismaClient } from '@prisma/client'
 
-const dbUrl = process.env.DATABASE_URL || ''
+// Lazy singleton — only connects on first actual query
+let _db: PrismaClient | null = null
 
-function createClient(): PrismaClient {
+async function initDb(): Promise<PrismaClient> {
+  if (_db) return _db
+
+  const dbUrl = process.env.DATABASE_URL || ''
+
   if (dbUrl.startsWith('libsql://')) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { PrismaLibSQL } = require('@prisma/adapter-libsql')
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { createClient } = require('@libsql/client')
+    const { PrismaLibSQL } = await import('@prisma/adapter-libsql')
+    const { createClient } = await import('@libsql/client')
 
     const libsql = createClient({
       url: dbUrl,
       authToken: process.env.TURSO_AUTH_TOKEN,
     })
 
-    return new PrismaClient({ adapter: new PrismaLibSQL(libsql) })
+    _db = new PrismaClient({ adapter: new PrismaLibSQL(libsql) })
+  } else {
+    _db = new PrismaClient()
   }
 
-  return new PrismaClient()
+  return _db
 }
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
-}
+// Sync export for backward compat — returns a proxy that
+// lazily initializes on first property access
+export const db = new Proxy({} as PrismaClient, {
+  get(_target, prop, receiver) {
+    // Allow instanceof checks
+    if (prop === Symbol.toStringTag) return 'PrismaClient'
+    if (prop === 'then' || prop === 'catch') return undefined
 
-export const db: PrismaClient = globalForPrisma.prisma ?? createClient()
+    // Sync access to already-initialized client
+    if (_db) return Reflect.get(_db, prop, receiver)
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db
+    // Not yet initialized — throw a helpful error
+    throw new Error(
+      'Database not initialized. Call initDb() first in an async context.'
+    )
+  },
+})
+
+export { initDb }

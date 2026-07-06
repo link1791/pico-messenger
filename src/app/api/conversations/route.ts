@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { initDb } from '@/lib/db'
 
 // GET /api/conversations?username=X
 // Returns all contacts that have messages with X, plus their last message
 export async function GET(request: NextRequest) {
   try {
+    const prisma = await initDb()
     const { searchParams } = new URL(request.url)
     const username = searchParams.get('username')
 
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all messages involving this user
-    const messages = await db.message.findMany({
+    const messages = await prisma.message.findMany({
       where: {
         OR: [
           { fromUser: username },

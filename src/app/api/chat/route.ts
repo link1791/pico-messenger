@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { initDb } from '@/lib/db'
 
 // GET /api/chat?username=X&contact=Y
 // Returns full message history between two users (for web UI, doesn't delete)
 export async function GET(request: NextRequest) {
   try {
+    const prisma = await initDb()
     const { searchParams } = new URL(request.url)
     const username = searchParams.get('username')
     const contact = searchParams.get('contact')
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get messages both ways
-    const messages = await db.message.findMany({
+    const messages = await prisma.message.findMany({
       where: {
         OR: [
           { fromUser: username, toUser: contact },
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
 // Body: { "username": "me", "contact": "them", "text": "hello" }
 export async function POST(request: NextRequest) {
   try {
+    const prisma = await initDb()
     const body = await request.json()
     const { username, contact, text } = body
 
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'missing fields' }, { status: 400 })
     }
 
-    await db.message.create({
+    await prisma.message.create({
       data: {
         fromUser: username,
         toUser: contact,
@@ -60,13 +62,13 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    await db.contact.upsert({
+    await prisma.contact.upsert({
       where: { username: contact },
       update: {},
       create: { username: contact },
     })
 
-    await db.contact.upsert({
+    await prisma.contact.upsert({
       where: { username },
       update: {},
       create: { username },

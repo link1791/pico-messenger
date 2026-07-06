@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, initDb } from '@/lib/db'
 
 // POST /api/send — called by Pico W messenger
 // Body: { "to": "username", "from": "username", "text": "message" }
 export async function POST(request: NextRequest) {
   try {
+    const prisma = await initDb()
     const body = await request.json()
     const { to, from, text } = body
 
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Store the message
-    await db.message.create({
+    await prisma.message.create({
       data: {
         fromUser: from,
         toUser: to,
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     // Ensure both users exist as contacts
     for (const username of [from, to]) {
-      await db.contact.upsert({
+      await prisma.contact.upsert({
         where: { username },
         update: {},
         create: { username },
