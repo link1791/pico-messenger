@@ -31,7 +31,8 @@ MSG_PAGE = 7        # lines of messages visible
 CHARS_PER_LINE_SM = SCR_W // FONT_SM().w   # 48
 CHARS_PER_LINE_LG = SCR_W // FONT_LG().w   # ~17
 MAX_MSG_LEN = 120
-DEFAULT_SERVER = "http://192.168.1.100:8080"
+SERVER_PORT = 8080
+DEFAULT_SERVER = "192.168.1.100"
 DEFAULT_USER = "pico"
 
 
@@ -70,15 +71,24 @@ def set_user(u):
     write_lines(USER_FILE, [u])
 
 
-def get_server():
+def get_server_ip():
     ensure_dir()
     lines = read_lines(SERVER_FILE)
     return lines[0] if lines else DEFAULT_SERVER
 
 
-def set_server(s):
+def set_server_ip(s):
     ensure_dir()
     write_lines(SERVER_FILE, [s])
+
+
+def get_server():
+    ip = get_server_ip()
+    return ip + ":" + str(SERVER_PORT)
+
+
+def set_server(s):
+    set_server_ip(s)
 
 
 # ─── contacts ───────────────────────────────────────────
@@ -252,9 +262,9 @@ def send_http(method, url, data=None):
 
 def fetch_messages(contact):
     """Fetch new messages from server for a contact."""
-    server = get_server()
+    ip = get_server_ip()
     user = get_user()
-    url = server + "/api/messages?user=" + user + "&from=" + contact
+    url = ip + ":" + str(SERVER_PORT) + "/api/messages?user=" + user + "&from=" + contact
     body = send_http("GET", url)
     if not body:
         return 0
@@ -290,9 +300,9 @@ def fetch_messages(contact):
 
 def push_message(contact, text):
     """Send a message to the server."""
-    server = get_server()
+    ip = get_server_ip()
     user = get_user()
-    url = server + "/api/send"
+    url = ip + ":" + str(SERVER_PORT) + "/api/send"
     data = '{"to":"' + contact + '","from":"' + user + '","text":"' + text + '"}'
     result = send_http("POST", url, data)
     return result is not None
@@ -579,12 +589,12 @@ def view_settings():
         y = 14
         screen.write("User: " + trunc(user, 20), 0, y, SCR.COLOR.BLACK, FONT_SM)
         y += 10
-        screen.write("Server:", 0, y, SCR.COLOR.BLACK, FONT_SM)
+        screen.write("Server IP:", 0, y, SCR.COLOR.BLACK, FONT_SM)
         y += 8
-        # wrap server URL
-        for line in wrap_text(server, CHARS_PER_LINE_SM):
-            screen.write(line, 4, y, SCR.COLOR.DARK, FONT_SM)
-            y += 8
+        ip = get_server_ip()
+        screen.write(ip, 4, y, SCR.COLOR.DARK, FONT_SM)
+        y += 8
+        screen.write("Port: " + str(SERVER_PORT), 0, y, SCR.COLOR.DARK, FONT_SM)
 
         # wifi status
         y += 4
@@ -599,15 +609,15 @@ def view_settings():
 
         screen.apply()
 
-        c = ui.choose(["Set username", "Set server", "Connect WiFi", "Back"])
+        c = ui.choose(["Set username", "Set server IP", "Connect WiFi", "Back"])
         if c == 0:
             u = ui.ask("Username:", user)
             if u:
                 set_user(u)
         elif c == 1:
-            s = ui.ask("Server URL:", server)
+            s = ui.ask("Server IP:", ip)
             if s:
-                set_server(s)
+                set_server_ip(s)
         elif c == 2:
             if wifi.support:
                 if wifi.choose_connect():
