@@ -2,29 +2,40 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const dbUrl = process.env.DATABASE_URL || 'NOT SET'
-    const token = process.env.TURSO_AUTH_TOKEN ? 'SET' : 'NOT SET'
-    
-    // Test libsql directly
     const { createClient } = await import('@libsql/client')
     const client = createClient({
-      url: dbUrl,
+      url: process.env.DATABASE_URL!,
       authToken: process.env.TURSO_AUTH_TOKEN,
     })
     
-    const result = await client.execute('SELECT 1 as test')
+    // Create tables if they don't exist
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS Contact (
+        id TEXT PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS Message (
+        id TEXT PRIMARY KEY,
+        fromUser TEXT NOT NULL,
+        toUser TEXT NOT NULL,
+        text TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+    await client.execute(`CREATE INDEX IF NOT EXISTS idx_msg_to_from ON Message(toUser, fromUser)`)
+    
+    const contacts = await client.execute('SELECT count(*) as c FROM Contact')
+    const messages = await client.execute('SELECT count(*) as c FROM Message')
     
     return NextResponse.json({
-      env: { dbUrl: dbUrl.substring(0, 40), token },
-      libsql: { ok: true, result: result.rows },
+      status: 'tables created',
+      contacts: contacts.rows[0].c,
+      messages: messages.rows[0].c,
     })
   } catch (error) {
-    return NextResponse.json({
-      env: { 
-        dbUrl: (process.env.DATABASE_URL || 'NOT SET').substring(0, 40), 
-        token: process.env.TURSO_AUTH_TOKEN ? 'SET' : 'NOT SET' 
-      },
-      error: String(error),
-    }, { status: 500 })
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
