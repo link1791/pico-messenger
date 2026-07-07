@@ -18,4 +18,4 @@ export async function GET() {
     console.error('Contacts error:', error)
     return NextResponse.json({ error: 'internal error', detail: String(error) }, { status: 500 })
   }
-}
+}// redeploy trigger
