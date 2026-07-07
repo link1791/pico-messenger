@@ -1,9 +1,20 @@
 import { NextResponse } from 'next/server'
+import { initDb } from '@/lib/db'
 
 export async function GET() {
-  return NextResponse.json({
-    DATABASE_URL: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 20) + '...' : 'UNDEFINED',
-    TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN ? 'SET (' + process.env.TURSO_AUTH_TOKEN.length + ' chars)' : 'UNDEFINED',
-    NODE_ENV: process.env.NODE_ENV || 'UNDEFINED',
-  })
+  try {
+    const prisma = await initDb()
+    const count = await prisma.contact.count()
+    return NextResponse.json({ 
+      status: 'ok', 
+      dbUrl: (process.env.DATABASE_URL || '').substring(0, 30),
+      contactCount: count 
+    })
+  } catch (error) {
+    return NextResponse.json({ 
+      status: 'error', 
+      detail: String(error),
+      dbUrl: (process.env.DATABASE_URL || '').substring(0, 30),
+    }, { status: 500 })
+  }
 }

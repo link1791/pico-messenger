@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client'
 
-// Lazy singleton — only connects on first actual query
 let _db: PrismaClient | null = null
 
 async function initDb(): Promise<PrismaClient> {
@@ -19,12 +18,12 @@ async function initDb(): Promise<PrismaClient> {
 
     _db = new PrismaClient({
       adapter: new PrismaLibSQL(libsql),
-      datasources: { db: { url: dbUrl } },
     })
   } else {
     _db = new PrismaClient()
   }
 
+  await _db.$connect()
   return _db
 }
 
