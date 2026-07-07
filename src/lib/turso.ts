@@ -152,3 +152,4 @@ export async function deleteChat(user: string, contact: string): Promise<void> {
 function esc(s: string): string {
   return s.replace(/'/g, "''")
 }
+
